@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
 
+from calendar import c
 import os
 import sys
 from hashlib import sha256
 import typing
 import json
 from enum import Enum
+from collections import OrderedDict
+from unicodedata import name
 
 
 class RunMode(Enum):
     collectHashes = 1
     compareOriginal = 2
     applyData = 3
+
+
+class progress:
+    def __init__(self, total) -> None:
+        self.enabled = False
+        try:
+            from tqdm import tqdm
+            self.enabled = True
+            self.bar = tqdm(total=total, unit_scale=True)
+        except ImportError:
+            pass
+
+    def update(self, value):
+        if self.enabled:
+            self.bar.update(value)
 
 
 def printUsage(error: str):
@@ -22,6 +40,14 @@ def printUsage(error: str):
 
 # Handy function from: https://stackoverflow.com/questions/510357/how-to-read-a-single-character-from-the-user
 # Thanks
+
+
+def progressRange(distance):
+    try:
+        from tqdm import tqdm
+        return tqdm(range(distance))
+    except:
+        return range(distance)
 
 
 def getChar():
@@ -47,11 +73,8 @@ def getChar():
                     answer = sys.stdin.read(1)
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, oldSettings)
-
                 return answer
-
             getChar._func = _ttyRead
-
     return getChar._func()
 
 
@@ -74,10 +97,15 @@ def humanFormat(num):
 def hashFile(inputFile: str, blockSize: int):
     fileHasher = sha256()
     hashes = []
+    fileSize = os.path.getsize(inputFile)
+    print("Hashing file:", inputFile)
+
+    bar = progress(fileSize)
     with open(inputFile, "rb") as inputData:
         dataRemains = True
         while dataRemains:
             inputBlock = inputData.read(blockSize)
+            bar.update(len(inputBlock))
             if len(inputBlock) == 0:
                 dataRemains = False
             else:
@@ -101,6 +129,17 @@ def collectHashes(inputFile: str, outputfile: str, blockSize: int = 1024 * 1024)
     with open(outputfile, "w") as outputData:
         data = json.dumps(fileData, indent=4)
         outputData.write(data)
+    dupHashes = {}
+    for hash in fileData["oldHashes"]:
+        if hash not in dupHashes:
+            dupHashes[hash] = 1
+        else:
+            dupHashes[hash] += 1
+    filteredHashes = filter(lambda x: x[1] > 1, dupHashes.items())
+    dict = OrderedDict(sorted(filteredHashes, key=lambda x: x[1]))
+    with open(outputfile + ".hashFrequency", "w") as dupData:
+        output = json.dumps(dict, indent=4)
+        dupData.write(output)
 
 
 def collectData(inputFile: str, hashesFile: str, outputFolder: str):
@@ -158,7 +197,11 @@ def collectData(inputFile: str, hashesFile: str, outputFolder: str):
         finalData.write(data)
 
 
-if len(sys.argv) < 1:
+def applyFixes(inputFile: str, outputFile: str, hashesFolder: str):
+    pass
+
+
+if len(sys.argv) < 2:
     printUsage("No file specified.")
 
 syncFile = sys.argv[1]
@@ -171,6 +214,7 @@ if len(sys.argv) > 2 and os.path.isdir(sys.argv[2]):
 
 hashOutputFile = os.path.join(targetFolder, os.path.basename(syncFile) + ".hashes")
 dataOutputFolder = os.path.join(targetFolder, os.path.basename(syncFile) + ".data")
+applyOutputFile = os.path.join(targetFolder, os.path.basename(syncFile) + ".fixed")
 
 if not os.path.exists(syncFile):
     printUsage("File", syncFile, "not found.")
@@ -190,4 +234,4 @@ if runMode == runMode.collectHashes:
 elif runMode == runMode.compareOriginal:
     collectData(syncFile, hashOutputFile, dataOutputFolder)
 elif runMode == runMode.applyData:
-    print("No apply function currently implemented")
+    applyFixes(syncFile, applyOutputFile, dataOutputFolder)
