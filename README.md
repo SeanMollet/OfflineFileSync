@@ -10,7 +10,7 @@ same problem again, I wrote this utility.
 
 ### Usage
 
-Run it against the received file. Send the resulting .hases file and a copy
+Run it against the received file. Send the resulting .hashes file and a copy
 of the program to the other side. These are both small, so email should be
 sufficient.
 
