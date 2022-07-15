@@ -129,6 +129,7 @@ def collectHashes(inputFile: str, outputfile: str, blockSize: int = 1024 * 1024)
     with open(outputfile, "w") as outputData:
         data = json.dumps(fileData, indent=4)
         outputData.write(data)
+
     dupHashes = {}
     for hash in fileData["oldHashes"]:
         if hash not in dupHashes:
@@ -137,8 +138,20 @@ def collectHashes(inputFile: str, outputfile: str, blockSize: int = 1024 * 1024)
             dupHashes[hash] += 1
     filteredHashes = filter(lambda x: x[1] > 1, dupHashes.items())
     dict = OrderedDict(sorted(filteredHashes, key=lambda x: x[1]))
+    duplicates = []
+    # Add a sample for each
+    for item in dict.items():
+        dup = {}
+        dup["Hash"] = item[0]
+        dup["Count"] = item[1]
+        for a in range(len(fileData["oldHashes"])):
+            if fileData["oldHashes"][a] == item[0]:
+                dup["SampleBlock"] = a
+                break
+        duplicates.append(dup)
+
     with open(outputfile + ".hashFrequency", "w") as dupData:
-        output = json.dumps(dict, indent=4)
+        output = json.dumps(duplicates, indent=4)
         dupData.write(output)
 
 
